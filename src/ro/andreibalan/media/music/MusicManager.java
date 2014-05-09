@@ -79,27 +79,13 @@ public class MusicManager extends AudioManager<Music> {
         return android.media.AudioManager.AUDIOFOCUS_REQUEST_FAILED;
     }
 
-    public ArrayList<Music> getPool() {
-        ArrayList<Music> pool = new ArrayList<Music>();
-
-        final ArrayList<IAudio> audioPool = getAudioPool();
-        for (int i = 0; i < audioPool.size(); i++) {
-            final IAudio audio = audioPool.get(i);
-
-            if (audio instanceof Music)
-                pool.add((Music) audio);
-        }
-
-        return pool;
-    }
-
     public Music getPlayingMusic() {
-        final ArrayList<Music> musicPool = getPool();
-        if (musicPool.isEmpty())
+        final ArrayList<Music> pool = getPool();
+        if (pool.isEmpty())
             return null;
 
-        for (int i = musicPool.size() - 1; i >= 0; i--) {
-            final Music music = musicPool.get(i);
+        for (int i = pool.size() - 1; i >= 0; i--) {
+            final Music music = pool.get(i);
             if (music.isPlaying())
                 return music;
         }

@@ -19,62 +19,201 @@
  */
 package ro.andreibalan.media;
 
-public abstract class Audio implements IAudio {
+import ro.andreibalan.media.volume.Volume;
+import ro.andreibalan.media.volume.Volume.OnVolumeChangeListener;
 
-    private AudioManager<? extends IAudio> mAudioManager;
+public abstract class Audio {
 
+    public final static String TAG = Audio.class.getSimpleName();
 
-    protected float mVolumeLeft = 1.0f;
-    protected float mVolumeRight = 1.0f;
+    /**
+     * An instance of Audio Manager child class that extends our own Audio class.
+     */
+    private AudioManager<? extends Audio> mAudioManager;
 
+    /**
+     * This is the current state of the Audio Instance. 
+     * Default this will be set to STOPPED.
+     */
+    private State mState = State.STOPPED;
 
-    protected Audio(final AudioManager<? extends IAudio> audioManager) {
-        mAudioManager = audioManager;
+    /**
+     * The Volume instance that the user can use to manipulate channel volume and balance value.
+     * This cannot ever be null and a new Volume instance will be set in the constructor.
+     */
+    private Volume mVolume;
+
+    /** 
+     * This represents all the states of an Audio Instance.
+     */
+    public enum State {
+
+        /**
+         * This is set when the playing has started.
+         */
+        PLAYING,
+
+        /**
+         * This is set when the Audio Instance is not playing or in pause mode.
+         */
+        STOPPED,
+
+        /**
+         * This is set when the Audio Instance is set to pause mode.
+         */
+        PAUSED
     }
 
-    protected AudioManager<? extends IAudio> getAudioManager() {
+    /**
+     * An instance of the {@link OnVolumeChangeListener} that will be attached to the current Volume Instance.
+     * If the Volume instance is changed that this listener will be attached to the new changed instance.
+     * 
+     * For the moment it only needs to listen to onVolumeChange evets so it can call handleVolumeChange method to call 
+     * the child classes so they can manage the volume change.
+     */
+    private OnVolumeChangeListener mVolumeChangeListener = new OnVolumeChangeListener() {
+
+        @Override
+        public void onVolumeChange(float leftChannel, float rightChannel) {
+            // Call handleVolumeChange on child classes to let them do the change they need.
+            handleVolumeChange();
+        }
+
+        @Override
+        public void onBalanceChange(float balance) {
+        }
+    };
+
+    /**
+     * This is the main constructor. Must always be called from child constructors so it can set the AudioManager Instance.
+     * @param audioManager
+     */
+    protected Audio(final AudioManager<? extends Audio> audioManager) {
+        mAudioManager = audioManager;
+
+        // Set a new Volume Object. All to maximum.
+        setVolume(new Volume(1.0f, 1.0f));
+    }
+
+    /**
+     * Returns the AudioManager instance of this class internally to child classes.
+     */
+    protected AudioManager<? extends Audio> getAudioManager() {
         return mAudioManager;
     }
 
+    /**
+     * This should be called from the child class only when they are sure that the audio has started playing.<br/>
+     * It changes the current state to PLAYING.
+     */
+    public void play() {
+        setState(mState = State.PLAYING);
+    }
+
+    /**
+     * This should be called from the child class only when tey are sure that the audio has stopped playing.<br/>
+     * It changes the current state to STOPPED.
+     */
+    public void stop() {
+        setState(State.STOPPED);
+    }
+
+    /**
+     * This should be called from the child class only when they are sure that the audio has been set to pause state.
+     * It changes the current state to PAUSED.
+     */
+    public void pause() {
+        setState(State.PAUSED);
+    }
+
+    /**
+     * Every child class should return the focus type they need using this method.
+     * @return
+     */
     protected abstract int getFocusType();
 
+    /**
+     * Implemented by child classes this is used to be notified when the volume values have changed so you can 
+     * control your media player.
+     */
     protected abstract void handleVolumeChange();
 
-    protected float getActualVolume(final float volume) {
-        return volume * getAudioManager().getMasterVolume();
+    /**
+     * Implemented by child classes this is used to be notified when the current state of the Audio Instance has changed.
+     */
+    protected abstract void handleStateChange(State state);
+
+    /**
+     * Implemented by child classes this will be publicly called when the application needs to release the current instances.
+     */
+    public abstract void release();
+
+    /**
+     * Internally returns the current state of the Audio instance.
+     */
+    protected State getState() {
+        return mState;
     }
 
-    @Override
-    public float getVolume() {
-        return (mVolumeLeft + mVolumeRight) * 0.5f;
+    /**
+     * Internally sets the set of the Audio Instance.
+     * <br/>
+     * This will also trigger handleStateChange();
+     */
+    protected void setState(final State state) {
+        mState = state;
+        handleStateChange(state);
     }
 
-    @Override
-    public float getLeftVolume() {
-        return mVolumeLeft;
+    /**
+     * Return true if the current Audio Instance is playing and can be heard.
+     * @return
+     */
+    public boolean isPlaying() {
+        return (mState == State.PLAYING);
     }
 
-    @Override
-    public float getRightVolume() {
-        return mVolumeRight;
+    /**
+     * Return true if the current Audio Instance is in Paused mode.
+     */
+    public boolean isPaused() {
+        return (mState == State.PAUSED);
     }
 
-    @Override
-    public void setVolume(float volume) {
-        setVolume(volume, volume);
+    /**
+     * Returns true if the current Audio Instance is Stopped and cannot be heard.
+     */
+    public boolean isStopped() {
+        return (mState == State.STOPPED);
     }
 
-    @Override
-    public void setVolume(float leftVolume, float rightVolume) {
-        mVolumeLeft = leftVolume;
-        mVolumeRight = rightVolume;
-
-        handleVolumeChange();
+    /**
+     * Returns the Volume Instance so that the user can use it's public methods to control the volume directly.
+     * @see Volume
+     */
+    public Volume getVolume() {
+        return mVolume;
     }
 
-    @Override
-    public void onMasterVolumeChanged(float masterVolume) {
-        handleVolumeChange();
+    /**
+     * Changes the current volume instance with another one and attaches the listener to it.<br/>
+     * After the new listener has been set a manual call to {@link #handleVolumeChange()} will be called so we can let the child classes know of a volume change.
+     * <br/><br/>
+     * <b>NOTE: It should not be necessary to change the Volume object because the new volume object will do the same thing. 
+     * <br/>
+     * Instead just use {@link #getVolume()} to get the current Volume Instance and modify it.}</b>
+     * 
+     * @param volume - Volume Instance
+     */
+    public void setVolume(final Volume volume) {
+        if (volume == null)
+            throw new IllegalArgumentException("You cannot pass a null object to setVolume.");
+
+        mVolume = volume;
+        mVolume.addOnVolumeChangeListener(mVolumeChangeListener);
+
+        // Manually notify our listener because the instance has changed therefore the volume will most probably not be the same.
+        mVolumeChangeListener.onVolumeChange(mVolume.getBalancedLeftChannel(), mVolume.getBalancedRightChannel());
     }
 
 }

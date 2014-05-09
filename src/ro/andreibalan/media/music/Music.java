@@ -260,4 +260,10 @@ public class Music extends Audio {
         ((MusicManager) getAudioManager()).remove(this);
     }
 
+    @Override
+    protected void handleStateChange(State state) {
+        // TODO Auto-generated method stub
+
+    }
+
 }

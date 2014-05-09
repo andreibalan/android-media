@@ -20,11 +20,10 @@
 package ro.andreibalan.media;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 
 import android.content.Context;
 
-public abstract class AudioManager<T extends IAudio> {
+public abstract class AudioManager<T extends Audio> {
 
     public final static int STREAM_TYPE = android.media.AudioManager.STREAM_MUSIC;
 
@@ -49,7 +48,10 @@ public abstract class AudioManager<T extends IAudio> {
         mSystemAudioManager = (android.media.AudioManager) mContext.getSystemService(Context.AUDIO_SERVICE);
     }
 
-    public abstract ArrayList<T> getPool();
+    public ArrayList<T> getPool() {
+        final ArrayList<T> audioPool = mAudioPool;
+        return audioPool;
+    }
 
     private void notifyMasterVolumeChange() {
         final ArrayList<T> audioPool = mAudioPool;
@@ -60,11 +62,7 @@ public abstract class AudioManager<T extends IAudio> {
         }
     }
 
-    protected ArrayList<IAudio> getAudioPool() {
-        final ArrayList<IAudio> audioPool = (ArrayList<IAudio>) this.mAudioPool;
-        return audioPool;
-    }
-
+    @SuppressWarnings("deprecation")
     public AudioOutputDevice getOutputDevice() {
         // Query for Bluetooth A2DP
         if (mSystemAudioManager.isBluetoothA2dpOn())

@@ -54,21 +54,6 @@ public class FXManager extends AudioManager<FX> implements OnLoadCompleteListene
                 fx.setLoaded(true);
         }
     }
-    
-    @Override
-    public ArrayList<FX> getPool() {
-        ArrayList<FX> pool = new ArrayList<FX>();
-
-        final ArrayList<IAudio> audioPool = getAudioPool();
-        for (int i = 0; i < audioPool.size(); i++) {
-            final IAudio audio = audioPool.get(i);
-
-            if (audio instanceof Music)
-                pool.add((FX) audio);
-        }
-
-        return pool;
-    }
 
     SoundPool getSoundPool() {
         return mSoundPool;
