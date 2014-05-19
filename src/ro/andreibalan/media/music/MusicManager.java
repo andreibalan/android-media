@@ -45,11 +45,11 @@ public class MusicManager extends AudioManager<Music> {
                 case android.media.AudioManager.AUDIOFOCUS_GAIN:
                     getMasterVolume().raiseChannels();
 
-                    changeState(State.PAUSED, State.PLAYING);
+                    changeMusicState(State.PAUSED, State.PLAYING);
                     break;
 
                 case android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
-                    changeState(State.PLAYING, State.PAUSED);
+                    changeMusicState(State.PLAYING, State.PAUSED);
                     break;
 
                 case android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
@@ -57,7 +57,7 @@ public class MusicManager extends AudioManager<Music> {
                     break;
 
                 case android.media.AudioManager.AUDIOFOCUS_LOSS:
-                    changeState(new State[]{
+                    changeMusicState(new State[]{
                             State.PAUSED, State.PLAYING
                     }, State.STOPPED);
                     break;
@@ -73,17 +73,18 @@ public class MusicManager extends AudioManager<Music> {
         Log.v(TAG, "Construct");
     }
 
-    private void changeState(final State from, final State to) {
-        changeState(new State[]{
+    private void changeMusicState(final State from, final State to) {
+        changeMusicState(new State[]{
                 from
         }, to);
     }
 
-    private void changeState(final State[] from, final State to) {
+    private void changeMusicState(final State[] from, final State to) {
         Log.v(TAG, "changeState from: " + from.toString() + ", to: " + to.toString());
 
         CopyOnWriteArrayList<Music> music = getPool(from);
         for (Music musicInstance : music) {
+            musicInstance.disableCrossfade();
             switch (to) {
                 case STOPPED:
                     musicInstance.stop();
@@ -104,7 +105,7 @@ public class MusicManager extends AudioManager<Music> {
      * Requests focus for starting music playback from Music Instance.<br/>
      * It returns the status code of the request.
      */
-    public int requestFocus(int streamType, int audioFocusType) {
+    protected int requestFocus(int streamType, int audioFocusType) {
         Log.v(TAG, "requestFocus: streamType: " + streamType + ", audioFocusType: " + audioFocusType);
 
         if (getSystemAudioManager() != null)
@@ -112,6 +113,32 @@ public class MusicManager extends AudioManager<Music> {
             return getSystemAudioManager().requestAudioFocus(mAudioFocusChangeListener, streamType, audioFocusType);
 
         return android.media.AudioManager.AUDIOFOCUS_REQUEST_FAILED;
+    }
+
+    /**
+     * Explicitly abandons the requested audio focus.
+     */
+    protected int abandonFocus() {
+        Log.v(TAG, "abandonFocus");
+
+        return getSystemAudioManager().abandonAudioFocus(mAudioFocusChangeListener);
+    }
+
+    @Override
+    public void start() {
+        // If this audio manager has previously been stopped we resume all Music Playback.
+        if (getState() == ManagerState.STOPPED)
+            changeMusicState(State.PAUSED, State.PLAYING);
+
+        super.start();
+    }
+
+    @Override
+    public void stop() {
+        // We pause all music playback for the moment until this manager will be started again.
+        changeMusicState(State.PLAYING, State.PAUSED);
+
+        super.stop();
     }
 
 }

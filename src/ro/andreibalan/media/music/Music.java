@@ -20,10 +20,10 @@
 package ro.andreibalan.media.music;
 
 import java.util.concurrent.CopyOnWriteArrayList;
-
 import ro.andreibalan.media.Audio;
 import ro.andreibalan.media.volume.Volume;
 import android.media.MediaPlayer;
+import android.os.Handler;
 
 public class Music extends Audio {
 
@@ -36,6 +36,8 @@ public class Music extends Audio {
     private MediaPlayer mMediaPlayer;
 
     private boolean mIsPendingStopped = false;
+    
+    private Handler mHandler = new Handler();
 
     Music(final MusicManager musicManager, final MediaPlayer mediaPlayer) {
         super(musicManager);
@@ -83,21 +85,31 @@ public class Music extends Audio {
                 musicInstance.stop();
             }
         }
+		
+		// We start the play in a Handler so we can delay the playback if we neet to.
+	    mHandler.postDelayed(new Runnable() {
+	
+			@Override
+		    public void run() {
+		            
+		    	// Request Audio Focus and then try to play the music.
+        		if (((MusicManager) getAudioManager()).requestFocus(android.media.AudioManager.STREAM_MUSIC, getFocusType()) == android.media.AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+            		mMediaPlayer.start();
+            		Music.super.play();
 
-        // Request Audio Focus and then try to play the music.
-        if (((MusicManager) getAudioManager()).requestFocus(android.media.AudioManager.STREAM_MUSIC, getFocusType()) == android.media.AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
-            mMediaPlayer.start();
-            super.play();
-
-            // If we have crossfading enabled we do this by manipulating the Volume Instance of our Object.
-            if (mCrossfadeDuration > 0) {
-                // Set the channel to 0 directly so we start from there.
-                getVolume().setChannel(Volume.MIN);
-
-                // Now raise the volume to maximum using the selected crossfade duration.
-                getVolume().setChannel(Volume.MAX, mCrossfadeDuration);
-            }
-        }
+            		// If we have crossfading enabled we do this by manipulating the Volume Instance of our Object.
+            		if (mCrossfadeDuration > 0) {
+		                // Set the channel to 0 directly so we start from there.
+		                getVolume().setChannel(Volume.MIN);
+		
+		                // Now raise the volume to maximum using the selected crossfade duration.
+		                getVolume().setChannel(Volume.MAX, mCrossfadeDuration);
+		            }
+        		}
+		    }
+		         
+		}, mCrossfadeDuration/2);
+            
     }
 
     @Override
@@ -108,6 +120,7 @@ public class Music extends Audio {
         if (isPlaying()) {
             mMediaPlayer.pause();
             super.pause();
+            ((MusicManager) getAudioManager()).abandonFocus();
         }
     }
 
@@ -145,6 +158,7 @@ public class Music extends Audio {
         mMediaPlayer.pause();
         mMediaPlayer.seekTo(0);
         super.stop();
+        ((MusicManager) getAudioManager()).abandonFocus();
     }
 
     public void setLooping(boolean isLooping) {

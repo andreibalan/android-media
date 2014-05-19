@@ -30,11 +30,23 @@ public class FXManager extends AudioManager<FX> implements OnLoadCompleteListene
 
     public final static String TAG = FXManager.class.getSimpleName();
 
-    private final static int SOUND_STATUS_OK = 0;
-
+    /**
+     * This is the SoundPool where we will load all the audio FX Instances.
+     * We create this SoundPool in the constructor.
+     */
     private SoundPool mSoundPool;
+
+    /**
+     * Sparse Array of FX Instances.
+     */
     private final SparseArray<FX> mSoundMap = new SparseArray<FX>();
 
+    /**
+     * Default constructor for the FXManager.<br/><br/>
+     * 
+     * @param context - Application Context
+     * @param maxSimultaneousStreams - Number of simultaneous playback streams or audio instances.
+     */
     public FXManager(Context context, final int maxSimultaneousStreams) {
         super(context);
         Log.v(TAG, "Constructor: maxSimultaneousStreams: " + maxSimultaneousStreams);
@@ -45,14 +57,17 @@ public class FXManager extends AudioManager<FX> implements OnLoadCompleteListene
 
     @Override
     public synchronized void onLoadComplete(SoundPool soundPool, int sampleId, int status) {
-        if (status == SOUND_STATUS_OK) {
+        if (status == 0) {
             final FX fx = mSoundMap.get(sampleId);
             if (fx != null)
                 fx.setLoaded(true);
         }
     }
 
-    SoundPool getSoundPool() {
+    /**
+     * Returns the loaded SoundPool
+     */
+    protected SoundPool getSoundPool() {
         Log.v(TAG, "getSoundPool");
         return mSoundPool;
     }
@@ -61,6 +76,7 @@ public class FXManager extends AudioManager<FX> implements OnLoadCompleteListene
     public boolean add(final FX fx) {
         Log.v(TAG, "add: " + fx);
 
+        // Before adding this to the audio pool we also add it to our own SparseArray
         final boolean added = super.add(fx);
         mSoundMap.put(fx.getSampleID(), fx);
 

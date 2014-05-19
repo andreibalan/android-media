@@ -474,9 +474,8 @@ public class Volume {
 
         if (mOriginalChannelOffset == null && mChannelOffset > TEMPORARY_OFFSET_THRESHOLD) {
             final float currentChannelOffset = mChannelOffset;
-            mOriginalChannelOffset = currentChannelOffset;
-
             setChannelOffset(TEMPORARY_OFFSET_THRESHOLD);
+            mOriginalChannelOffset = currentChannelOffset;
             Log.v(TAG, "lowerChannels: Channels have been lowerd.");
         }
     }
@@ -485,8 +484,10 @@ public class Volume {
         Log.v(TAG, "raiseChannels");
 
         if (mOriginalChannelOffset != null) {
-            setChannelOffset(mOriginalChannelOffset);
+            final float originalChannelOffset = mOriginalChannelOffset;
             mOriginalChannelOffset = null;
+            setChannelOffset(originalChannelOffset);
+
             Log.v(TAG, "raiseChannels: Channels have been raised.");
         }
     }

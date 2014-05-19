@@ -53,6 +53,12 @@ public abstract class AudioManager<T extends Audio> {
     private Volume mMasterVolume;
 
     /**
+     * The current state of this Audio manager.
+     * By default it is set to STOPPED.
+     */
+    private ManagerState mCurrentState = ManagerState.IDLE;
+
+    /**
      *  Interface that will be implemented by Audio to be used when notifying the master volume change to all the Audio Instances.
      */
     public static interface OnMasterVolumeChange {
@@ -90,6 +96,15 @@ public abstract class AudioManager<T extends Audio> {
         SPEAKERPHONE,
         HEADSET,
         SPEAKER
+    }
+
+    /**
+     * The state of the Audio Manager.
+     */
+    public enum ManagerState {
+        IDLE,
+        STARTED,
+        STOPPED
     }
 
     /**
@@ -196,6 +211,24 @@ public abstract class AudioManager<T extends Audio> {
     }
 
     /**
+     * Returns the current state of the Audio Manager.
+     */
+    public ManagerState getState() {
+        Log.v(TAG, "getState: " + mCurrentState.toString());
+
+        return mCurrentState;
+    }
+
+    /**
+     * Changes the state of the Audio Manager.
+     */
+    public void setState(final ManagerState state) {
+        Log.v(TAG, "setState: " + state);
+
+        mCurrentState = state;
+    }
+
+    /**
      * This will return the Audio Output device.
      */
     @SuppressWarnings("deprecation")
@@ -230,6 +263,24 @@ public abstract class AudioManager<T extends Audio> {
             audio.stop();
             audio.release();
         }
+
+        setState(ManagerState.IDLE);
+    }
+
+    /**
+     * This is called when you want to start the AudioManager.
+     */
+    public void start() {
+        Log.v(TAG, "start");
+        setState(ManagerState.STARTED);
+    }
+
+    /**
+     * This is called when you want to stop the Audio Manager.
+     */
+    public void stop() {
+        Log.v(TAG, "stop");
+        setState(ManagerState.STOPPED);
     }
 
 }
