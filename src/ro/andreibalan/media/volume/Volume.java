@@ -24,6 +24,22 @@ public class Volume {
     public final static String TAG = Volume.class.getSimpleName();
 
     /**
+     * Minimum Channel Volume Value.
+     */
+    public final static float MIN = 0.0f;
+
+    /**
+     * Maximum Channel Volume Value.
+     */
+    public final static float MAX = 1.0f;
+
+    /**
+     * This is the Channel Volume Lowering Threshold.
+     * If the channel volumes are higher that this value they will be lowerd to it if not there will be no lowering.
+     */
+    private final static float TEMPORARY_OFFSET_THRESHOLD = 0.2f;
+
+    /**
      * Short Animator Value used for Fading Volumes and Channel Balance.
      */
     public final static int FADE_DURATION_SHORT = 400;
@@ -49,6 +65,18 @@ public class Volume {
     private float mRightChannel = 1.0f;
 
     /**
+     * Used for offseting both of the channel volumes.
+     * Acts like a mastering volume.
+     */
+    private float mChannelOffset = 1.0f;
+
+    /**
+     * Used for temporarily lowering the volume.
+     * Saving the original channel offset before lowering it and then restoring it from here.
+     */
+    private Float mOriginalChannelOffset = null;
+
+    /**
      * Left-Right Channel Balance. Default is set to middle balance.
      * 
      * Examples:
@@ -57,6 +85,11 @@ public class Volume {
      * +1.0f Right Channel (Left Channel Muted)
      */
     private float mBalance = 0f;
+
+    /**
+     * Used to know if the current Volume is muted.
+     */
+    private boolean mMuted = false;
 
     /**
      * Animator used to Fade Channel Volumes.
@@ -221,7 +254,7 @@ public class Volume {
         Log.v(TAG, "notifyVolumeChange " + mListeners.size() + " Listeners");
 
         for (int i = 0; i < mListeners.size(); i++)
-            mListeners.get(i).onVolumeChange(getBalancedLeftChannel(), getBalancedRightChannel());
+            mListeners.get(i).onVolumeChange(getCalculatedLeftChannel(), getCalculatedRightChannel());
     }
 
     /**
@@ -278,6 +311,17 @@ public class Volume {
         Log.v(TAG, "getChannel");
 
         return (mLeftChannel + mRightChannel) * 0.5f;
+    }
+
+    public float getCalculatedChannel() {
+        Log.v(TAG, "getCalculatedChannel");
+
+        if (isMuted())
+            return 0f;
+
+        float volume = getChannel();
+        volume *= mChannelOffset;
+        return volume;
     }
 
     /**
@@ -365,7 +409,7 @@ public class Volume {
      * Returns the direct left channel volume value without.
      * <br/><br/>
      * <b>NOTE: If the channel balance is not at 0.0 (Middle Value) this means that this direct volume value is not the real volume value. 
-     * TO get the real volume value use {@link #getBalancedLeftChannel()}</b>
+     * TO get the real volume value use {@link #getCalculatedLeftChannel()}</b>
      * 
      * @return - float value of the left channel volume without balance calculation.
      */
@@ -379,7 +423,7 @@ public class Volume {
      * Returns the direct right channel volume value without.
      * <br/><br/>
      * <b>NOTE: If the channel balance is not at 0.0 (Middle Value) this means that this direct volume value is not the real volume value. 
-     * TO get the real volume value use {@link #getBalancedRightChannel()}</b>
+     * TO get the real volume value use {@link #getCalculatedRightChannel()}</b>
      * 
      * @return - float value of the right channel volume without balance calculation.
      */
@@ -396,10 +440,14 @@ public class Volume {
      * 
      * @return - float value of the left channel volume with balance calculation.
      */
-    public float getBalancedLeftChannel() {
-        Log.v(TAG, "getbalancedLeftChannel");
+    public float getCalculatedLeftChannel() {
+        Log.v(TAG, "getCalculatedLeftChannel");
+
+        if (isMuted())
+            return 0f;
 
         float volume = mLeftChannel;
+        volume *= mChannelOffset;
         return volume;
     }
 
@@ -410,11 +458,37 @@ public class Volume {
      * 
      * @return - float value of the right channel volume with balance calculation.
      */
-    public float getBalancedRightChannel() {
-        Log.v(TAG, "getBalancedRightChannel");
+    public float getCalculatedRightChannel() {
+        Log.v(TAG, "getCalculatedRightChannel");
+
+        if (isMuted())
+            return 0f;
 
         float volume = mRightChannel;
+        volume *= mChannelOffset;
         return volume;
+    }
+
+    public void lowerChannels() {
+        Log.v(TAG, "lowerChannels");
+
+        if (mOriginalChannelOffset == null && mChannelOffset > TEMPORARY_OFFSET_THRESHOLD) {
+            final float currentChannelOffset = mChannelOffset;
+            mOriginalChannelOffset = currentChannelOffset;
+
+            setChannelOffset(TEMPORARY_OFFSET_THRESHOLD);
+            Log.v(TAG, "lowerChannels: Channels have been lowerd.");
+        }
+    }
+
+    public void raiseChannels() {
+        Log.v(TAG, "raiseChannels");
+
+        if (mOriginalChannelOffset != null) {
+            setChannelOffset(mOriginalChannelOffset);
+            mOriginalChannelOffset = null;
+            Log.v(TAG, "raiseChannels: Channels have been raised.");
+        }
     }
 
     /**
@@ -514,6 +588,52 @@ public class Volume {
         mBalanceAnimator.addUpdateListener(mBalanceUpdateListener);
         mBalanceAnimator.addListener(mBalanceAnimatorListener);
         mBalanceAnimator.start();
+    }
+
+    public void setChannelOffset(final float value) {
+        Log.v(TAG, "setChannelOffset: " + value);
+
+        verifyChannelInput(value);
+
+        // If the volume has been temporarily lowered (duck) we set the value to the saved original offset value variable. 
+        if (mOriginalChannelOffset != null)
+            mOriginalChannelOffset = value;
+        else
+            mChannelOffset = value;
+
+        notifyVolumeChange();
+    }
+
+    public float getChannelOffset() {
+        Log.v(TAG, "getChannelOffset");
+
+        return mChannelOffset;
+    }
+
+    public void mute() {
+        Log.v(TAG, "mute");
+
+        if (!mMuted) {
+            mMuted = true;
+            notifyVolumeChange();
+            Log.v(TAG, "unmute: Channels have been muted.");
+        }
+    }
+
+    public void unmute() {
+        Log.v(TAG, "unmute");
+
+        if (mMuted) {
+            mMuted = false;
+            notifyVolumeChange();
+            Log.v(TAG, "unmute: Channels have been unmuted.");
+        }
+    }
+
+    public boolean isMuted() {
+        Log.v(TAG, "isMuted: " + mMuted);
+
+        return mMuted;
     }
 
     /**

@@ -19,22 +19,72 @@
  */
 package ro.andreibalan.media;
 
-import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.concurrent.CopyOnWriteArrayList;
 
+import ro.andreibalan.media.volume.Volume;
+import ro.andreibalan.media.volume.Volume.OnVolumeChangeListener;
 import android.content.Context;
+import android.util.Log;
 
 public abstract class AudioManager<T extends Audio> {
 
-    public final static int STREAM_TYPE = android.media.AudioManager.STREAM_MUSIC;
+    public final static String TAG = AudioManager.class.getSimpleName();
 
-    private final static float AUDIO_DUCK_VOLUME = 0.2f;
+    /**
+     * Every Audio Instance will be added to this audio pool when it's created using the Factory Methods.
+     * This way the AudioManager can keep track of every initialized instance.
+     */
+    private final CopyOnWriteArrayList<T> mAudioPool = new CopyOnWriteArrayList<T>();
 
-    protected final ArrayList<T> mAudioPool = new ArrayList<T>();
-    protected float mMasterVolume = 1.0f;
-    private Float mOriginalVolume = null;
+    /**
+     * The system audio manager that will be retrieved in the Constructor.
+     */
+    private android.media.AudioManager mSystemAudioManager;
+
+    /**
+     * Context
+     */
     private Context mContext;
-    protected android.media.AudioManager mSystemAudioManager;
 
+    /**
+     * This is the current assign Volume instance to be used as master volume per AudioManager Instance.
+     */
+    private Volume mMasterVolume;
+
+    /**
+     *  Interface that will be implemented by Audio to be used when notifying the master volume change to all the Audio Instances.
+     */
+    public static interface OnMasterVolumeChange {
+
+        /**
+         * Will notify the audio instance that the master volume has change so it can offset it's current volume instance.
+         */
+        public void onMasterVolumeChange(final Volume volume);
+
+    }
+
+    /**
+     * Volume change listener that will be attached to the current volume instance.
+     */
+    private OnVolumeChangeListener mMasterVolumeChangeListener = new Volume.OnVolumeChangeListener() {
+
+        @Override
+        public void onVolumeChange(float leftChannel, float rightChannel) {
+            // When the master volume changes we notify all the OnMasterVolumeChange instances.
+            notifyMasterVolumeChange();
+        }
+
+        @Override
+        public void onBalanceChange(float balance) {
+
+        }
+    };
+
+    /**
+     * Type of Audio Output Devices.
+     * This will reflect what output is currently used by the phone.
+     */
     public enum AudioOutputDevice {
         A2DP,
         SPEAKERPHONE,
@@ -42,28 +92,116 @@ public abstract class AudioManager<T extends Audio> {
         SPEAKER
     }
 
+    /**
+     * This is the main constructor for the AudioManager but will be called for all the child constructors.
+     */
     protected AudioManager(Context context) {
+        Log.v(TAG, "Constructor");
+
         this.mContext = context;
 
+        // Retrieve the Audio Manager from the system context.
         mSystemAudioManager = (android.media.AudioManager) mContext.getSystemService(Context.AUDIO_SERVICE);
+
+        // Set a new Volume Object. All to maximum.
+        setMasterVolume(new Volume(1.0f, 1.0f));
     }
 
-    public ArrayList<T> getPool() {
-        final ArrayList<T> audioPool = mAudioPool;
-        return audioPool;
+    protected android.media.AudioManager getSystemAudioManager() {
+        Log.v(TAG, "getSystemAudioManager");
+        return mSystemAudioManager;
     }
 
+    /**
+     * Adds an Audio Instance to the audio pool.
+     */
+    public boolean add(final T audio) {
+        Log.v(TAG, "add: " + audio);
+
+        if (!mAudioPool.contains(audio))
+            return mAudioPool.add(audio);
+
+        return false;
+    }
+
+    /**
+     * Removes a current Audio Instance from the audio pool only if it's still there.
+     */
+    public boolean remove(final T audio) {
+        Log.v(TAG, "remove: " + audio);
+        if (mAudioPool.contains(audio))
+            return mAudioPool.remove(audio);
+
+        return false;
+    }
+
+    /**
+     * Returns the current audio pool list.
+     */
+    public CopyOnWriteArrayList<T> getPool() {
+        Log.v(TAG, "getPool");
+        return mAudioPool;
+    }
+
+    public CopyOnWriteArrayList<T> getPool(Audio.State... state) {
+        Log.v(TAG, "getPool: state: " + state);
+
+        final CopyOnWriteArrayList<T> pool = new CopyOnWriteArrayList<T>();
+
+        for (int i = mAudioPool.size() - 1; i >= 0; i--) {
+            final T audioInstance = mAudioPool.get(i);
+            if (Arrays.asList(state).contains(audioInstance.getState()))
+                pool.add(audioInstance);
+        }
+
+        return pool;
+    }
+
+    /**
+     * Replaces the current master Volume Instance.<br/>
+     * Note that it should not be necessary to replace the volume instance as it is created in the constructor and can easily be manipulated be using {@link #getMasterVolume()}. 
+     */
+    public void setMasterVolume(final Volume volume) {
+        Log.v(TAG, "setMasterVolume: " + volume);
+
+        if (volume == null)
+            throw new IllegalArgumentException("You cannot pass a null object to setVolume.");
+
+        mMasterVolume = volume;
+        mMasterVolume.addOnVolumeChangeListener(mMasterVolumeChangeListener);
+
+        // Manually notify our listener because the instance has changed therefore the volume will most probably not be the same.
+        mMasterVolumeChangeListener.onVolumeChange(mMasterVolume.getCalculatedLeftChannel(), mMasterVolume.getCalculatedRightChannel());
+    }
+
+    /**
+     * Returns the master volume instance so you can easily change it channel volume or balance values.
+     */
+    public Volume getMasterVolume() {
+        Log.v(TAG, "getMasterVolume");
+
+        return mMasterVolume;
+    }
+
+    /**
+     * Notifies every Audio instance in the pool starting with the last one added.<br/>
+     * This should normally be called when the master volume has been changed and we get notified using the Volume.OnVolumeChangeListener.
+     */
     private void notifyMasterVolumeChange() {
-        final ArrayList<T> audioPool = mAudioPool;
+        Log.v(TAG, "notifyMasterVolumeChange");
 
-        for (int i = audioPool.size() - 1; i >= 0; i--) {
-            final T audio = audioPool.get(i);
-            audio.onMasterVolumeChanged(mMasterVolume);
+        for (int i = mAudioPool.size() - 1; i >= 0; i--) {
+            ((OnMasterVolumeChange) mAudioPool.get(i)).onMasterVolumeChange(mMasterVolume);
         }
     }
 
+    /**
+     * This will return the Audio Output device.
+     */
     @SuppressWarnings("deprecation")
     public AudioOutputDevice getOutputDevice() {
+        Log.v(TAG, "getOutputDevice");
+
         // Query for Bluetooth A2DP
         if (mSystemAudioManager.isBluetoothA2dpOn())
             return AudioOutputDevice.A2DP;
@@ -80,53 +218,14 @@ public abstract class AudioManager<T extends Audio> {
         return AudioOutputDevice.SPEAKER;
     }
 
-    protected boolean isDucked() {
-        return (mOriginalVolume != null);
-    }
-
-    protected void duckVolume() {
-        if (mMasterVolume > AUDIO_DUCK_VOLUME && !isDucked()) {
-            final float currentVolume = mMasterVolume;
-            mOriginalVolume = currentVolume;
-            setMasterVolume(AUDIO_DUCK_VOLUME);
-        }
-    }
-
-    protected void raiseVolume() {
-        if (isDucked()) {
-            setMasterVolume((float) mOriginalVolume);
-            mOriginalVolume = null;
-        }
-    }
-
     /**
-     * Abstract Methods
+     * Releases all the Audio Instances added to the AudioPool starting with the last one added.
      */
-    public float getMasterVolume() {
-        return mMasterVolume;
-    }
-
-    public void setMasterVolume(final float masterVolume) {
-        mMasterVolume = masterVolume;
-        notifyMasterVolumeChange();
-    }
-
-    public void add(final T audio) {
-        mAudioPool.add(audio);
-    }
-
-    public boolean remove(final T audio) {
-        if (mAudioPool.contains(audio))
-            return mAudioPool.remove(audio);
-
-        return false;
-    }
-
     public void releaseAll() {
-        final ArrayList<T> audioPool = mAudioPool;
+        Log.v(TAG, "releaseAll: Releasing " + mAudioPool.size() + " Audio Instances");
 
-        for (int i = audioPool.size() - 1; i >= 0; i--) {
-            final T audio = audioPool.get(i);
+        for (int i = mAudioPool.size() - 1; i >= 0; i--) {
+            final T audio = mAudioPool.get(i);
 
             audio.stop();
             audio.release();

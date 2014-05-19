@@ -19,25 +19,23 @@
  */
 package ro.andreibalan.media.music;
 
-import ro.andreibalan.media.Audio;
-import ro.andreibalan.media.AudioManager;
-import android.animation.Animator;
-import android.animation.Animator.AnimatorListener;
-import android.animation.ValueAnimator;
-import android.animation.ValueAnimator.AnimatorUpdateListener;
-import android.media.MediaPlayer;
+import java.util.concurrent.CopyOnWriteArrayList;
 
+import ro.andreibalan.media.Audio;
+import ro.andreibalan.media.volume.Volume;
+import android.media.MediaPlayer;
 
 public class Music extends Audio {
 
+    public final static String TAG = Music.class.getSimpleName();
+
     public final static int CROSSFADE_DURATION = 2000;
 
-    private boolean mIsLooping;
+    private boolean mIsLooping = false;
+    private int mCrossfadeDuration = 0;
     private MediaPlayer mMediaPlayer;
-    private boolean mIsPaused;
-    private ValueAnimator mRaiseVolumeAnimator;
-    private ValueAnimator mLowerVolumeAnimator;
-    private boolean mIsPlaying = false;
+
+    private boolean mIsPendingStopped = false;
 
     Music(final MusicManager musicManager, final MediaPlayer mediaPlayer) {
         super(musicManager);
@@ -53,154 +51,53 @@ public class Music extends Audio {
         if (mMediaPlayer == null)
             return;
 
-        mMediaPlayer.setVolume(getActualVolume(mVolumeLeft), getActualVolume(mVolumeRight));
+        mMediaPlayer.setVolume(getVolume().getCalculatedLeftChannel(), getVolume().getCalculatedRightChannel());
+
+        // If we do a crossfade we need to stop the playing music instance when the volume reaches MIN value so we wait for the event and then stop it.
+        if (mIsPendingStopped && getVolume().getChannel() == Volume.MIN) {
+            mIsPendingStopped = false;
+            stopMediaPlayer();
+        }
     }
+
+    @Override
+    protected void handleStateChange(State state) {
+
+    }
+
+    // OVERWRITTEN METHODS
 
     @Override
     public void play() {
-        play(mIsLooping, false);
-    }
-
-    public void play(boolean loop, boolean fadeIn) {
         if (mMediaPlayer == null)
             return;
-
-        setLooping(loop);
 
         // Music audio cannot play all at the same time.
         // We get all music instances in the pool and see if there is any playing.
-        final Music playingMusic = ((MusicManager) getAudioManager()).getPlayingMusic();
-        if (playingMusic != null) {
-            // If the playing music is out instance then we do nothing here. Play is useless because
-            // we are already playing.
-            if (playingMusic == this)
-                return;
+        CopyOnWriteArrayList<Music> playingMusic = ((MusicManager) getAudioManager()).getPool(State.PLAYING);
+        if (!playingMusic.isEmpty()) {
+            for (Music musicInstance : playingMusic) {
+                if (mCrossfadeDuration > 0)
+                    musicInstance.enableCrossfade(mCrossfadeDuration);
 
-            // Stop the other music.
-            playingMusic.stop(fadeIn);
+                musicInstance.stop();
+            }
         }
 
         // Request Audio Focus and then try to play the music.
-        if (((MusicManager) getAudioManager()).requestFocus(AudioManager.STREAM_TYPE, getFocusType()) == android.media.AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
-
-            if (fadeIn) {
-                // Handle the other Animator if it exists.
-                if (mRaiseVolumeAnimator != null) {
-                    mRaiseVolumeAnimator.cancel();
-                    mRaiseVolumeAnimator = null;
-                }
-
-                mRaiseVolumeAnimator = ValueAnimator.ofFloat(0f, 1.0f);
-                mRaiseVolumeAnimator.setDuration(CROSSFADE_DURATION);
-                mRaiseVolumeAnimator.setStartDelay(Math.round(CROSSFADE_DURATION * 0.75));
-
-                mRaiseVolumeAnimator.addListener(new AnimatorListener() {
-
-                    @Override
-                    public void onAnimationStart(Animator animation) {
-                    }
-
-                    @Override
-                    public void onAnimationRepeat(Animator animation) {
-                    }
-
-                    @Override
-                    public void onAnimationEnd(Animator animation) {
-                        mRaiseVolumeAnimator = null;
-
-                    }
-
-                    @Override
-                    public void onAnimationCancel(Animator animation) {
-                        mRaiseVolumeAnimator = null;
-                        stopMediaPlayer();
-                    }
-                });
-
-                mRaiseVolumeAnimator.addUpdateListener(new AnimatorUpdateListener() {
-
-                    @Override
-                    public void onAnimationUpdate(ValueAnimator animation) {
-                        final float value = (float) animation.getAnimatedValue();
-                        Music.this.setVolume(value);
-                    }
-                });
-
-                setVolume(0);
-                mRaiseVolumeAnimator.start();
-            }
-
+        if (((MusicManager) getAudioManager()).requestFocus(android.media.AudioManager.STREAM_MUSIC, getFocusType()) == android.media.AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
             mMediaPlayer.start();
-            mIsPlaying = true;
+            super.play();
 
-            // If it was in Pause state we remove this state.
-            if (mIsPaused)
-                mIsPaused = false;
-        }
-    }
+            // If we have crossfading enabled we do this by manipulating the Volume Instance of our Object.
+            if (mCrossfadeDuration > 0) {
+                // Set the channel to 0 directly so we start from there.
+                getVolume().setChannel(Volume.MIN);
 
-    @Override
-    public void stop() {
-        stop(false);
-    }
-
-    public void stop(boolean fadeOut) {
-        if (mMediaPlayer == null)
-            return;
-
-        if (isPlaying()) {
-            if (fadeOut && mLowerVolumeAnimator == null) {
-                // Stop using a fadeOut volume effect.
-                mLowerVolumeAnimator = ValueAnimator.ofFloat(getVolume(), 0f);
-                mLowerVolumeAnimator.setDuration(CROSSFADE_DURATION);
-                mLowerVolumeAnimator.addListener(new AnimatorListener() {
-
-                    @Override
-                    public void onAnimationStart(Animator animation) {
-                    }
-
-                    @Override
-                    public void onAnimationRepeat(Animator animation) {
-                    }
-
-                    @Override
-                    public void onAnimationEnd(Animator animation) {
-                        mLowerVolumeAnimator = null;
-                        stopMediaPlayer();
-                    }
-
-                    @Override
-                    public void onAnimationCancel(Animator animation) {
-                        mLowerVolumeAnimator = null;
-                        stopMediaPlayer();
-                    }
-                });
-
-                mLowerVolumeAnimator.addUpdateListener(new AnimatorUpdateListener() {
-
-                    @Override
-                    public void onAnimationUpdate(ValueAnimator animation) {
-                        final float value = (float) animation.getAnimatedValue();
-                        setVolume(value);
-                    }
-
-                });
-
-                mLowerVolumeAnimator.start();
-            } else {
-                // Stop directly
-                stopMediaPlayer();
+                // Now raise the volume to maximum using the selected crossfade duration.
+                getVolume().setChannel(Volume.MAX, mCrossfadeDuration);
             }
         }
-    }
-
-    private void stopMediaPlayer() {
-        // This will actually put the media player into pause and seet position at 0.
-        // Stopping the mediaPlayer will also release it's configuration and you cannot start it
-        // without preparing it before.
-        mMediaPlayer.pause();
-        mMediaPlayer.seekTo(0);
-        mIsPlaying = false;
     }
 
     @Override
@@ -210,28 +107,50 @@ public class Music extends Audio {
 
         if (isPlaying()) {
             mMediaPlayer.pause();
-            mIsPlaying = false;
-            mIsPaused = true;
+            super.pause();
         }
     }
 
-    public boolean isPaused() {
-        return mIsPaused;
-    }
-
     @Override
-    public boolean isPlaying() {
+    public void stop() {
         if (mMediaPlayer == null)
-            return false;
+            return;
 
-        return mMediaPlayer.isPlaying() && mIsPlaying;
+        if (mCrossfadeDuration > 0) {
+            mIsPendingStopped = true;
+            getVolume().setChannel(Volume.MIN, mCrossfadeDuration);
+        } else
+            stopMediaPlayer();
     }
 
-    public void playLooping() {
-        play(true, false);
+    // MUSIC RELATED METHODS
+    public void enableCrossfade(final int duration) {
+        mCrossfadeDuration = duration;
+    }
+
+    public void disableCrossfade() {
+        mCrossfadeDuration = 0;
+    }
+
+    /**
+     * Because when the Media Player is stopped it also releases its loaded audio source we don't have the luxury to reloaded and
+     * we do not actually stop the player we just set it to a pause state and seek back to the start of the audio.
+     * <br/><br/>
+     * We will actually be in a STOPPED state so the client will now know of the weird things that are happening here.
+     */
+    private void stopMediaPlayer() {
+        if (mMediaPlayer == null)
+            return;
+
+        mMediaPlayer.pause();
+        mMediaPlayer.seekTo(0);
+        super.stop();
     }
 
     public void setLooping(boolean isLooping) {
+        if (mMediaPlayer == null)
+            return;
+
         mIsLooping = isLooping;
         mMediaPlayer.setLooping(mIsLooping);
     }
@@ -242,28 +161,13 @@ public class Music extends Audio {
 
     @Override
     public void release() {
-        if (mRaiseVolumeAnimator != null) {
-            mRaiseVolumeAnimator.cancel();
-            mRaiseVolumeAnimator = null;
-        }
-
-        if (mLowerVolumeAnimator != null) {
-            mLowerVolumeAnimator.cancel();
-            mLowerVolumeAnimator = null;
-        }
-
         if (mMediaPlayer != null) {
+            mIsPendingStopped = false;
             mMediaPlayer.release();
             mMediaPlayer = null;
         }
 
         ((MusicManager) getAudioManager()).remove(this);
-    }
-
-    @Override
-    protected void handleStateChange(State state) {
-        // TODO Auto-generated method stub
-
     }
 
 }

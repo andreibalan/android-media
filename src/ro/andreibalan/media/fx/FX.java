@@ -28,7 +28,6 @@ public class FX extends Audio {
     private int mStreamID;
     private int mLoopCount = 0;
     private float mRate = 1.0f;
-    private boolean mIsPaused;
 
     FX(final FXManager fxManager, int sampleID) {
         super(fxManager);
@@ -61,49 +60,56 @@ public class FX extends Audio {
     }
 
     @Override
-    public void release() {
-        ((FXManager) getAudioManager()).remove(this);
+    protected void handleVolumeChange() {
+        if (this.mStreamID != 0)
+            ((FXManager) getAudioManager()).getSoundPool().setVolume(this.mStreamID, getVolume().getCalculatedLeftChannel(),
+                    getVolume().getCalculatedRightChannel());
+
+    }
+
+    @Override
+    protected void handleStateChange(State state) {
+
     }
 
     @Override
     public void play() {
-        if (mStreamID != 0 && mIsPaused) {
+        if (mStreamID != 0 && isPaused()) {
             // Act as Resume from here.
             ((FXManager) getAudioManager()).getSoundPool().resume(mStreamID);
-            mIsPaused = false;
         } else {
             // Act as normal play.
-            mStreamID = ((FXManager) getAudioManager()).getSoundPool().play(mSampleID, getActualVolume(mVolumeLeft), getActualVolume(mVolumeRight), 1,
+            mStreamID = ((FXManager) getAudioManager()).getSoundPool().play(mSampleID, getVolume().getCalculatedLeftChannel(),
+                    getVolume().getCalculatedRightChannel(), 1,
                     mLoopCount,
                     mRate);
         }
+
+        super.play();
     }
 
     @Override
     public void stop() {
-        if (this.mStreamID != 0) {
-            ((FXManager) getAudioManager()).getSoundPool().stop(mStreamID);
-        }
+        if (this.mStreamID == 0)
+            return;
+
+        ((FXManager) getAudioManager()).getSoundPool().stop(mStreamID);
+        super.stop();
     }
 
     @Override
     public void pause() {
-        if (this.mStreamID != 0) {
-            ((FXManager) getAudioManager()).getSoundPool().pause(mStreamID);
-            mIsPaused = true;
-        }
+        if (this.mStreamID == 0)
+            return;
+
+        ((FXManager) getAudioManager()).getSoundPool().pause(mStreamID);
+        super.pause();
+
     }
 
     @Override
-    public boolean isPlaying() {
-        return false;
-    }
-
-    @Override
-    protected void handleVolumeChange() {
-        if (this.mStreamID != 0)
-            ((FXManager) getAudioManager()).getSoundPool().setVolume(this.mStreamID, getActualVolume(mVolumeLeft), getActualVolume(mVolumeRight));
-
+    public void release() {
+        ((FXManager) getAudioManager()).remove(this);
     }
 
 }

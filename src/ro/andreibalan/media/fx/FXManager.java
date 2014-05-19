@@ -19,30 +19,27 @@
  */
 package ro.andreibalan.media.fx;
 
-import java.util.ArrayList;
-
 import ro.andreibalan.media.AudioManager;
-import ro.andreibalan.media.IAudio;
-import ro.andreibalan.media.music.Music;
-
 import android.content.Context;
 import android.media.SoundPool;
 import android.media.SoundPool.OnLoadCompleteListener;
+import android.util.Log;
 import android.util.SparseArray;
-
 
 public class FXManager extends AudioManager<FX> implements OnLoadCompleteListener {
 
+    public final static String TAG = FXManager.class.getSimpleName();
+
     private final static int SOUND_STATUS_OK = 0;
 
-    public final static int STREAMS = 5;
     private SoundPool mSoundPool;
     private final SparseArray<FX> mSoundMap = new SparseArray<FX>();
 
     public FXManager(Context context, final int maxSimultaneousStreams) {
         super(context);
+        Log.v(TAG, "Constructor: maxSimultaneousStreams: " + maxSimultaneousStreams);
 
-        this.mSoundPool = new SoundPool(maxSimultaneousStreams, AudioManager.STREAM_TYPE, 0);
+        this.mSoundPool = new SoundPool(maxSimultaneousStreams, android.media.AudioManager.STREAM_MUSIC, 0);
         this.mSoundPool.setOnLoadCompleteListener(this);
     }
 
@@ -56,18 +53,24 @@ public class FXManager extends AudioManager<FX> implements OnLoadCompleteListene
     }
 
     SoundPool getSoundPool() {
+        Log.v(TAG, "getSoundPool");
         return mSoundPool;
     }
 
     @Override
-    public void add(final FX fx) {
-        super.add(fx);
+    public boolean add(final FX fx) {
+        Log.v(TAG, "add: " + fx);
 
+        final boolean added = super.add(fx);
         mSoundMap.put(fx.getSampleID(), fx);
+
+        return added;
     }
 
     @Override
     public boolean remove(final FX fx) {
+        Log.v(TAG, "remove: " + fx);
+
         final boolean removed = super.remove(fx);
         if (removed)
             this.mSoundMap.remove(fx.getSampleID());
@@ -77,6 +80,8 @@ public class FXManager extends AudioManager<FX> implements OnLoadCompleteListene
 
     @Override
     public void releaseAll() {
+        Log.v(TAG, "releaseAll");
+
         super.releaseAll();
 
         // Release our own SoundPool

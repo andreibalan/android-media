@@ -22,7 +22,7 @@ package ro.andreibalan.media;
 import ro.andreibalan.media.volume.Volume;
 import ro.andreibalan.media.volume.Volume.OnVolumeChangeListener;
 
-public abstract class Audio {
+public abstract class Audio implements AudioManager.OnMasterVolumeChange {
 
     public final static String TAG = Audio.class.getSimpleName();
 
@@ -213,7 +213,13 @@ public abstract class Audio {
         mVolume.addOnVolumeChangeListener(mVolumeChangeListener);
 
         // Manually notify our listener because the instance has changed therefore the volume will most probably not be the same.
-        mVolumeChangeListener.onVolumeChange(mVolume.getBalancedLeftChannel(), mVolume.getBalancedRightChannel());
+        mVolumeChangeListener.onVolumeChange(mVolume.getCalculatedLeftChannel(), mVolume.getCalculatedRightChannel());
+    }
+
+    @Override
+    public void onMasterVolumeChange(final Volume volume) {
+        if (mVolume != null)
+            mVolume.setChannelOffset(volume.getCalculatedChannel());
     }
 
 }

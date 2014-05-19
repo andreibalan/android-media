@@ -19,100 +19,99 @@
  */
 package ro.andreibalan.media.music;
 
-import java.util.ArrayList;
+import java.util.concurrent.CopyOnWriteArrayList;
 
+import ro.andreibalan.media.Audio.State;
 import ro.andreibalan.media.AudioManager;
-import ro.andreibalan.media.IAudio;
-
 import android.content.Context;
 import android.media.AudioManager.OnAudioFocusChangeListener;
-
+import android.util.Log;
 
 public class MusicManager extends AudioManager<Music> {
 
+    public final static String TAG = MusicManager.class.getSimpleName();
+
+    /**
+     * Audio Focus Change Listener that is registered every time the Music Instance requests a focus of playing back audio.
+     * <br/><br/>
+     * Will handle audio focus gain and loss, transient and duck so we can manage the volumes or playback from here.
+     */
     private final OnAudioFocusChangeListener mAudioFocusChangeListener = new OnAudioFocusChangeListener() {
 
         @Override
         public void onAudioFocusChange(int focusChange) {
-            final Music playingMusic;
-            final Music pausedMusic;
 
             switch (focusChange) {
                 case android.media.AudioManager.AUDIOFOCUS_GAIN:
-                    // Raise volume from duck.
-                    raiseVolume();
+                    getMasterVolume().raiseChannels();
 
-                    pausedMusic = getPausedMusic();
-                    if (pausedMusic != null)
-                        pausedMusic.play();
-
+                    changeState(State.PAUSED, State.PLAYING);
                     break;
 
                 case android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
-                    playingMusic = getPlayingMusic();
-                    if (playingMusic != null)
-                        playingMusic.pause();
+                    changeState(State.PLAYING, State.PAUSED);
                     break;
 
                 case android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
-                    duckVolume();
+                    getMasterVolume().lowerChannels();
                     break;
 
                 case android.media.AudioManager.AUDIOFOCUS_LOSS:
-                    playingMusic = getPlayingMusic();
-                    if (playingMusic != null)
-                        playingMusic.stop();
+                    changeState(new State[]{
+                            State.PAUSED, State.PLAYING
+                    }, State.STOPPED);
                     break;
             }
         }
     };
 
+    /**
+     * Default Constructor for Music Manager.
+     */
     public MusicManager(Context context) {
         super(context);
+        Log.v(TAG, "Construct");
     }
 
+    private void changeState(final State from, final State to) {
+        changeState(new State[]{
+                from
+        }, to);
+    }
+
+    private void changeState(final State[] from, final State to) {
+        Log.v(TAG, "changeState from: " + from.toString() + ", to: " + to.toString());
+
+        CopyOnWriteArrayList<Music> music = getPool(from);
+        for (Music musicInstance : music) {
+            switch (to) {
+                case STOPPED:
+                    musicInstance.stop();
+                    break;
+
+                case PLAYING:
+                    musicInstance.play();
+                    break;
+
+                case PAUSED:
+                    musicInstance.pause();
+                    break;
+            }
+        }
+    }
+
+    /**
+     * Requests focus for starting music playback from Music Instance.<br/>
+     * It returns the status code of the request.
+     */
     public int requestFocus(int streamType, int audioFocusType) {
-        if (mSystemAudioManager != null)
+        Log.v(TAG, "requestFocus: streamType: " + streamType + ", audioFocusType: " + audioFocusType);
+
+        if (getSystemAudioManager() != null)
             // Request audio focus for playback.
-            return mSystemAudioManager.requestAudioFocus(mAudioFocusChangeListener, streamType, audioFocusType);
+            return getSystemAudioManager().requestAudioFocus(mAudioFocusChangeListener, streamType, audioFocusType);
 
         return android.media.AudioManager.AUDIOFOCUS_REQUEST_FAILED;
-    }
-
-    public Music getPlayingMusic() {
-        final ArrayList<Music> pool = getPool();
-        if (pool.isEmpty())
-            return null;
-
-        for (int i = pool.size() - 1; i >= 0; i--) {
-            final Music music = pool.get(i);
-            if (music.isPlaying())
-                return music;
-        }
-
-        return null;
-    }
-
-    public Music getPausedMusic() {
-        final ArrayList<Music> musicPool = getPool();
-        if (musicPool.isEmpty())
-            return null;
-
-        for (int i = musicPool.size() - 1; i >= 0; i--) {
-            final Music music = musicPool.get(i);
-            if (music.isPaused())
-                return music;
-        }
-
-        return null;
-    }
-
-    public boolean isMusicPaused() {
-        return (getPausedMusic() != null);
-    }
-
-    public boolean isMusicPlaying() {
-        return (getPlayingMusic() != null);
     }
 
 }
