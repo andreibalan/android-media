@@ -115,7 +115,9 @@ public class FX extends Audio {
 
     @Override
     protected void handleVolumeChange() {
-        super.handleVolumeChange();
+        // If the volume has just changed to mute and we are not in stopped state we immediately stop. Also releasing audio focus.
+        if(getVolume().isMuted() && !isStopped())
+            stop();
 
         if (this.mStreamID != 0)
             ((FXManager) getAudioManager()).getSoundPool().setVolume(this.mStreamID, getVolume().getCalculatedLeftChannel(),

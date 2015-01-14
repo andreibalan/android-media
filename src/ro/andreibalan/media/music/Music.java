@@ -36,6 +36,7 @@ public class Music extends Audio {
     private MediaPlayer mMediaPlayer;
     
     private Handler mHandler = new Handler();
+    private boolean mIsMutePaused;
 
     Music(final MusicManager musicManager, final MediaPlayer mediaPlayer) {
         super(musicManager);
@@ -49,10 +50,17 @@ public class Music extends Audio {
 
     @Override
     protected void handleVolumeChange() {
-        super.handleVolumeChange();
-
         if (mMediaPlayer == null)
             return;
+
+        // If the volume has just changed to mute and we are playing we set the music to paused state and add a flag so we know that we have paused for this reason. When the volume is un-muted we resume play.
+        if(getVolume().isMuted() && isPlaying()) {
+            mIsMutePaused = true;
+            pause();
+        } else if(!getVolume().isMuted() && isPaused() && mIsMutePaused) {
+            mIsMutePaused = false;
+            play();
+        }
 
         mMediaPlayer.setVolume(getVolume().getCalculatedLeftChannel(), getVolume().getCalculatedRightChannel());
     }
@@ -149,6 +157,7 @@ public class Music extends Audio {
         if (mMediaPlayer == null)
             return;
 
+        mIsMutePaused = false;
         mMediaPlayer.pause();
         mMediaPlayer.seekTo(0);
         super.stop();

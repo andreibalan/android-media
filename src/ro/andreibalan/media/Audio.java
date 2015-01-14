@@ -138,11 +138,7 @@ public abstract class Audio implements AudioManager.OnMasterVolumeChange {
      * Implemented by child classes this is used to be notified when the volume values have changed so you can 
      * control your media player.
      */
-    protected void handleVolumeChange() {
-        // If the volume has just changed to mute and we are not in stopped state we immediately stop. Also releasing audio focus.
-        if(getVolume().isMuted() && !isStopped())
-            stop();
-    }
+    protected abstract void handleVolumeChange();
 
     /**
      * Implemented by child classes this is used to be notified when the current state of the Audio Instance has changed.
