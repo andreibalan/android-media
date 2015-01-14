@@ -211,8 +211,8 @@ public class Volume {
     /**
      * Stereo Constructor
      * 
-     * @param leftVolume
-     * @param rightVolume
+     * @param leftChannel
+     * @param rightChannel
      */
     public Volume(final float leftChannel, final float rightChannel) {
         Log.v(TAG, "Construct Stereo");
@@ -301,6 +301,7 @@ public class Volume {
         mLeftChannel = volume;
         mRightChannel = volume;
 
+        verifyChannelOutput();
         notifyVolumeChange();
     }
 
@@ -368,6 +369,7 @@ public class Volume {
         this.mLeftChannel = leftChannel;
         this.mRightChannel = rightChannel;
 
+        verifyChannelOutput();
         calculateBalance();
     }
 
@@ -382,10 +384,7 @@ public class Volume {
     public void setLeftChannel(final float volume) {
         Log.v(TAG, "setLeftChannel volume: " + volume);
 
-        verifyChannelInput(volume);
-
-        this.mLeftChannel = volume;
-        calculateBalance();
+        setChannels(volume, mLeftChannel);
     }
 
     /**
@@ -399,10 +398,7 @@ public class Volume {
     public void setRightChannel(final float volume) {
         Log.v(TAG, "setRightChannel volume: " + volume);
 
-        verifyChannelInput(volume);
-
-        this.mRightChannel = volume;
-        calculateBalance();
+        setChannels(mLeftChannel, volume);
     }
 
     /**
@@ -467,6 +463,27 @@ public class Volume {
         float volume = mRightChannel;
         volume *= mChannelOffset;
         return volume;
+    }
+
+    public void setChannelOffset(final float value) {
+        Log.v(TAG, "setChannelOffset: " + value);
+
+        verifyChannelInput(value);
+
+        // If the volume has been temporarily lowered (duck) we set the value to the saved original offset value variable.
+        if (mOriginalChannelOffset != null)
+            mOriginalChannelOffset = value;
+        else
+            mChannelOffset = value;
+
+        verifyChannelOutput();
+        notifyVolumeChange();
+    }
+
+    public float getChannelOffset() {
+        Log.v(TAG, "getChannelOffset");
+
+        return mChannelOffset;
     }
 
     public void lowerChannels() {
@@ -591,26 +608,6 @@ public class Volume {
         mBalanceAnimator.start();
     }
 
-    public void setChannelOffset(final float value) {
-        Log.v(TAG, "setChannelOffset: " + value);
-
-        verifyChannelInput(value);
-
-        // If the volume has been temporarily lowered (duck) we set the value to the saved original offset value variable. 
-        if (mOriginalChannelOffset != null)
-            mOriginalChannelOffset = value;
-        else
-            mChannelOffset = value;
-
-        notifyVolumeChange();
-    }
-
-    public float getChannelOffset() {
-        Log.v(TAG, "getChannelOffset");
-
-        return mChannelOffset;
-    }
-
     public void mute() {
         Log.v(TAG, "mute");
 
@@ -635,6 +632,20 @@ public class Volume {
         Log.v(TAG, "isMuted: " + mMuted);
 
         return mMuted;
+    }
+
+    /**
+     * Checks if the calculated output channel is equals or bigger than 0.0 and mutes or unmutes if necessary.
+     * NOTE: Set's mute directly and doesn't notify of the volume change. YOu should manually take care of notifying volume change.
+     */
+    private void verifyChannelOutput() {
+        Log.v(TAG, "verifyChannelOutput");
+
+        if(getCalculatedChannel() == Volume.MIN && !isMuted()) {
+            mMuted = true;
+        } else if(getCalculatedChannel() > Volume.MIN && isMuted()) {
+            mMuted = false;
+        }
     }
 
     /**

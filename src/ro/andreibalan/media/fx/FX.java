@@ -115,6 +115,8 @@ public class FX extends Audio {
 
     @Override
     protected void handleVolumeChange() {
+        super.handleVolumeChange();
+
         if (this.mStreamID != 0)
             ((FXManager) getAudioManager()).getSoundPool().setVolume(this.mStreamID, getVolume().getCalculatedLeftChannel(),
                     getVolume().getCalculatedRightChannel());

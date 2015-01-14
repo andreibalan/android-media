@@ -91,8 +91,10 @@ public abstract class Audio implements AudioManager.OnMasterVolumeChange {
     protected Audio(final AudioManager<? extends Audio> audioManager) {
         mAudioManager = audioManager;
 
-        // Set a new Volume Object. All to maximum.
-        setVolume(new Volume(1.0f, 1.0f));
+        // Set a new Volume Object. All to maximum but we take into consideration the master volume.
+        Volume volume = new Volume(1.0f, 1.0f);
+        volume.setChannelOffset(audioManager.getMasterVolume().getCalculatedChannel());
+        setVolume(volume);
     }
 
     /**
@@ -136,7 +138,11 @@ public abstract class Audio implements AudioManager.OnMasterVolumeChange {
      * Implemented by child classes this is used to be notified when the volume values have changed so you can 
      * control your media player.
      */
-    protected abstract void handleVolumeChange();
+    protected void handleVolumeChange() {
+        // If the volume has just changed to mute and we are not in stopped state we immediately stop. Also releasing audio focus.
+        if(getVolume().isMuted() && !isStopped())
+            stop();
+    }
 
     /**
      * Implemented by child classes this is used to be notified when the current state of the Audio Instance has changed.

@@ -34,8 +34,6 @@ public class Music extends Audio {
     private boolean mIsLooping = false;
     private int mCrossfadeDuration = 0;
     private MediaPlayer mMediaPlayer;
-
-    private boolean mIsPendingStopped = false;
     
     private Handler mHandler = new Handler();
 
@@ -49,17 +47,14 @@ public class Music extends Audio {
         return android.media.AudioManager.AUDIOFOCUS_GAIN;
     }
 
+    @Override
     protected void handleVolumeChange() {
+        super.handleVolumeChange();
+
         if (mMediaPlayer == null)
             return;
 
         mMediaPlayer.setVolume(getVolume().getCalculatedLeftChannel(), getVolume().getCalculatedRightChannel());
-
-        // If we do a crossfade we need to stop the playing music instance when the volume reaches MIN value so we wait for the event and then stop it.
-        if (mIsPendingStopped && getVolume().getChannel() == Volume.MIN) {
-            mIsPendingStopped = false;
-            stopMediaPlayer();
-        }
     }
 
     @Override
@@ -71,7 +66,7 @@ public class Music extends Audio {
 
     @Override
     public void play() {
-        if (mMediaPlayer == null)
+        if (mMediaPlayer == null || getVolume().isMuted())
             return;
 
         // Music audio cannot play all at the same time.
@@ -130,7 +125,6 @@ public class Music extends Audio {
             return;
 
         if (mCrossfadeDuration > 0) {
-            mIsPendingStopped = true;
             getVolume().setChannel(Volume.MIN, mCrossfadeDuration);
         } else
             stopMediaPlayer();
@@ -176,7 +170,6 @@ public class Music extends Audio {
     @Override
     public void release() {
         if (mMediaPlayer != null) {
-            mIsPendingStopped = false;
             mMediaPlayer.release();
             mMediaPlayer = null;
         }
