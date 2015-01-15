@@ -12,12 +12,12 @@
 package ro.andreibalan.media.volume;
 
 import java.util.concurrent.CopyOnWriteArrayList;
-
-import android.animation.Animator;
-import android.animation.Animator.AnimatorListener;
-import android.animation.ValueAnimator;
-import android.animation.ValueAnimator.AnimatorUpdateListener;
 import android.util.Log;
+
+import com.nineoldandroids.animation.Animator;
+import com.nineoldandroids.animation.ValueAnimator;
+
+import static com.nineoldandroids.animation.ValueAnimator.AnimatorUpdateListener;
 
 public class Volume {
 
@@ -125,7 +125,7 @@ public class Volume {
         public void onBalanceChange(float balance);
     }
 
-    private AnimatorListener mVolumeAnimatorListener = new AnimatorListener() {
+    private Animator.AnimatorListener mVolumeAnimatorListener = new Animator.AnimatorListener() {
 
         @Override
         public void onAnimationStart(Animator animation) {
@@ -148,7 +148,7 @@ public class Volume {
         }
     };
 
-    private AnimatorListener mBalanceAnimatorListener = new AnimatorListener() {
+    private Animator.AnimatorListener mBalanceAnimatorListener = new Animator.AnimatorListener() {
 
         @Override
         public void onAnimationStart(Animator animation) {
@@ -175,7 +175,7 @@ public class Volume {
 
         @Override
         public void onAnimationUpdate(ValueAnimator animation) {
-            setChannel((float) animation.getAnimatedValue());
+            setChannel((Float) animation.getAnimatedValue());
         }
 
     };
@@ -184,7 +184,7 @@ public class Volume {
 
         @Override
         public void onAnimationUpdate(ValueAnimator animation) {
-            setBalance((float) animation.getAnimatedValue());
+            setBalance((Float) animation.getAnimatedValue());
         }
 
     };
@@ -641,9 +641,12 @@ public class Volume {
     private void verifyChannelOutput() {
         Log.v(TAG, "verifyChannelOutput");
 
-        if(getCalculatedChannel() == Volume.MIN && !isMuted()) {
+        // Manually calculating channel here instead of using getCalculatedChannel method because we do not want to take into consideration mute.
+        float calculatedChannel = getChannel() * mChannelOffset;
+
+        if(calculatedChannel == Volume.MIN && !isMuted()) {
             mMuted = true;
-        } else if(getCalculatedChannel() > Volume.MIN && isMuted()) {
+        } else if(calculatedChannel > Volume.MIN && isMuted()) {
             mMuted = false;
         }
     }

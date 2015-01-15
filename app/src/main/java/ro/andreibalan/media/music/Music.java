@@ -79,7 +79,7 @@ public class Music extends Audio {
 
         // Music audio cannot play all at the same time.
         // We get all music instances in the pool and see if there is any playing.
-        CopyOnWriteArrayList<Music> playingMusic = ((MusicManager) getAudioManager()).getPool(State.PLAYING);
+        CopyOnWriteArrayList<Music> playingMusic = ((MusicManager) getAudioManager()).getPool(State.PLAYING, State.PAUSED);
         if (!playingMusic.isEmpty()) {
             for (Music musicInstance : playingMusic) {
                 if (mCrossfadeDuration > 0)
