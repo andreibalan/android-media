@@ -37,6 +37,7 @@ public class Music extends Audio {
     
     private Handler mHandler = new Handler();
     private boolean mIsMutePaused;
+    private boolean mIsPendingStopped = false;
 
     Music(final MusicManager musicManager, final MediaPlayer mediaPlayer) {
         super(musicManager);
@@ -53,16 +54,24 @@ public class Music extends Audio {
         if (mMediaPlayer == null)
             return;
 
-        // If the volume has just changed to mute and we are playing we set the music to paused state and add a flag so we know that we have paused for this reason. When the volume is un-muted we resume play.
-        if(getVolume().isMuted() && isPlaying()) {
-            mIsMutePaused = true;
-            pause();
-        } else if(!getVolume().isMuted() && isPaused() && mIsMutePaused) {
-            mIsMutePaused = false;
-            play();
+        if(!getVolume().isFadingChannel()) {
+            // If the volume has just changed to mute and we are playing we set the music to paused state and add a flag so we know that we have paused for this reason. When the volume is un-muted we resume play.
+            if (getVolume().isMuted() && isPlaying()) {
+                mIsMutePaused = true;
+                pause();
+            } else if (!getVolume().isMuted() && isPaused() && mIsMutePaused) {
+                mIsMutePaused = false;
+                play();
+            }
         }
 
         mMediaPlayer.setVolume(getVolume().getCalculatedLeftChannel(), getVolume().getCalculatedRightChannel());
+
+        // If we do a crossfade we need to stop the playing music instance when the volume reaches MIN value so we wait for the event and then stop it.
+        if (mIsPendingStopped && getVolume().getChannel() == Volume.MIN) {
+            mIsPendingStopped = false;
+            stopMediaPlayer();
+        }
     }
 
     @Override
@@ -74,7 +83,7 @@ public class Music extends Audio {
 
     @Override
     public void play() {
-        if (mMediaPlayer == null || getVolume().isMuted())
+        if (mMediaPlayer == null)
             return;
 
         // Music audio cannot play all at the same time.
@@ -82,14 +91,33 @@ public class Music extends Audio {
         CopyOnWriteArrayList<Music> playingMusic = ((MusicManager) getAudioManager()).getPool(State.PLAYING, State.PAUSED);
         if (!playingMusic.isEmpty()) {
             for (Music musicInstance : playingMusic) {
+                if(musicInstance.equals(this)) {
+                    if(isPaused())
+                        break;
+                    else
+                        return;
+                }
+
                 if (mCrossfadeDuration > 0)
                     musicInstance.enableCrossfade(mCrossfadeDuration);
 
                 musicInstance.stop();
             }
         }
+
+        // If volume is muted and user wants to play a instance we will manually set this to state and set mIsMutePaused so we can play it immediately after unmute.
+        // Event if it was not played before
+        if(getVolume().isMuted()) {
+            if(!mIsMutePaused)
+                mIsMutePaused = true;
+
+            if(!isPaused())
+                super.pause();
+
+            return;
+        }
 		
-		// We start the play in a Handler so we can delay the playback if we neet to.
+		// We start the play in a Handler so we can delay the playback if we need to.
 	    mHandler.postDelayed(new Runnable() {
 	
 			@Override
@@ -97,17 +125,22 @@ public class Music extends Audio {
 		            
 		    	// Request Audio Focus and then try to play the music.
         		if (((MusicManager) getAudioManager()).requestFocus(android.media.AudioManager.STREAM_MUSIC, getFocusType()) == android.media.AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
-            		mMediaPlayer.start();
-            		Music.super.play();
+
 
             		// If we have crossfading enabled we do this by manipulating the Volume Instance of our Object.
             		if (mCrossfadeDuration > 0) {
 		                // Set the channel to 0 directly so we start from there.
 		                getVolume().setChannel(Volume.MIN);
-		
+                        mMediaPlayer.start();
+
 		                // Now raise the volume to maximum using the selected crossfade duration.
 		                getVolume().setChannel(Volume.MAX, mCrossfadeDuration);
-		            }
+		            } else {
+                        // If no crossfading enabled just play the music directly.
+                        mMediaPlayer.start();
+                    }
+
+                    Music.super.play();
         		}
 		    }
 		         
@@ -133,6 +166,7 @@ public class Music extends Audio {
             return;
 
         if (mCrossfadeDuration > 0) {
+            mIsPendingStopped = true;
             getVolume().setChannel(Volume.MIN, mCrossfadeDuration);
         } else
             stopMediaPlayer();

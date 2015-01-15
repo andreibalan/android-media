@@ -351,6 +351,14 @@ public class Volume {
     }
 
     /**
+     * Tells you if the channels are fading.
+     * @return boolean
+     */
+    public boolean isFadingChannel() {
+        return (mVolumeAnimator != null);
+    }
+
+    /**
      * Sets the left and right channel volume values individually (Stereo Control).
      * This will also trigger a channel balance value calculation.
      * <br/><br/>
@@ -606,6 +614,14 @@ public class Volume {
         mBalanceAnimator.addUpdateListener(mBalanceUpdateListener);
         mBalanceAnimator.addListener(mBalanceAnimatorListener);
         mBalanceAnimator.start();
+    }
+
+    /**
+     * Tells yous if a fade is currently running on balance.
+     * @return boolean.
+     */
+    public boolean isFadingBalance() {
+        return (mBalanceAnimator != null && mBalanceAnimator.isRunning());
     }
 
     public void mute() {
