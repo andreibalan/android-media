@@ -1,0 +1,23 @@
+// Plugins
+apply plugin: 'android-library'
+
+// Android
+android {
+    compileSdkVersion 19
+    buildToolsVersion '19.1.0'
+
+    defaultConfig {
+        minSdkVersion 16
+        targetSdkVersion 19
+    }
+}
+
+repositories {
+    mavenCentral()
+    jcenter()
+}
+
+// Our project dependencies
+dependencies {
+    compile 'com.nineoldandroids:library:2.4.0'
+}
